@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Миф или реальность — как обнаружить обман в сети</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --bg-alt:#f5f5f7;
+    --bg-dark:#000000;
+    --text:#1d1d1f;
+    --muted:#6e6e73;
+    --accent:#0071e3;
+    --accent-soft:#5ac8fa;
+    --danger:#ff3b30;
+    --success:#34c759;
+    --hairline:rgba(0,0,0,.08);
+    --radius:18px;
+    --pill:980px;
+    --ease:cubic-bezier(.28,.84,.42,1);
+    --spring:cubic-bezier(.34,1.4,.64,1);
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{height:100%}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;
+    font-size:17px;
+    line-height:1.5;
+    letter-spacing:-.022em;
+    -webkit-font-smoothing:antialiased;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    overflow:hidden;
+  }
+
+  /* ---------- top progress bar ---------- */
+  .progress{
+    position:fixed;
+    top:0;left:0;right:0;
+    height:3px;
+    z-index:60;
+    background:rgba(0,0,0,.05);
+    pointer-events:none;
+  }
+  .progress-fill{
+    display:block;
+    height:100%;
+    width:0;
+    border-radius:0 3px 3px 0;
+    background:linear-gradient(90deg,var(--accent-soft),var(--accent));
+    box-shadow:0 0 10px rgba(0,113,227,.45);
+    transition:width .75s var(--ease);
+  }
+  .progress-fill.pulse{animation:barPulse .75s var(--ease)}
+  @keyframes barPulse{
+    0%{box-shadow:0 0 0 rgba(0,113,227,0);filter:brightness(1)}
+    35%{box-shadow:0 0 18px rgba(0,113,227,.75);filter:brightness(1.25)}
+    100%{box-shadow:0 0 10px rgba(0,113,227,.45);filter:brightness(1)}
+  }
+
+  /* ---------- slides ---------- */
+  .slide{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:84px 60px 148px;
+    overflow:hidden;
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transform:translate3d(60px,0,0) scale(.98);
+    filter:blur(3px);
+    transition:
+      opacity .75s var(--ease),
+      transform .75s var(--ease),
+      filter .75s var(--ease);
+  }
+  .slide.no-anim{transition:none}
+  .slide.active{
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+    transform:translate3d(0,0,0) scale(1);
+    filter:blur(0);
+  }
+  .slide.leaving{visibility:visible}
+  .slide--alt{background:var(--bg-alt)}
+  .slide--dark{background:var(--bg-dark);color:#f5f5f7}
+
+  .slide--dark::before{
+    content:"";
+    position:absolute;
+    inset:-120px;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+    background-size:48px 48px;
+    animation:gridDrift 60s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes gridDrift{
+    from{transform:translate3d(0,0,0)}
+    to{transform:translate3d(-48px,-48px,0)}
+  }
+
+  .slide-inner{
+    position:relative;
+    width:100%;
+    max-width:1000px;
+    margin:0 auto;
+    text-align:center;
+  }
+
+  .slide-num{
+    position:absolute;
+    top:-52px;
+    right:0;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.16em;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .slide--dark .slide-num{color:rgba(245,245,247,.45)}
+
+  /* ---------- entrance animations ---------- */
+  .anim-up,.anim-title,.anim-hero,.anim-num,.anim-pop{
+    opacity:0;
+    transition:
+      opacity .7s var(--ease) var(--d,0s),
+      transform .8s var(--spring) var(--d,0s),
+      filter .7s var(--ease) var(--d,0s);
+    will-change:opacity,transform,filter;
+  }
+  .anim-up{transform:translateY(36px) scale(.95);filter:blur(2px)}
+  .anim-title{transform:scale(.94);filter:blur(3px)}
+  .anim-hero{transform:translateY(16px);filter:blur(4px)}
+  .anim-num{transform:translateX(16px);filter:blur(2px)}
+  .anim-pop{transform:scale(.8);filter:blur(2px)}
+  .slide.active .anim-up,
+  .slide.active .anim-title,
+  .slide.active .anim-hero,
+  .slide.active .anim-num{
+    opacity:1;
+    transform:none;
+    filter:blur(0);
+  }
+  .anim-hero{transition-duration:.9s}
+  .slide.active .anim-pop{
+    opacity:1;
+    transform:scale(1);
+    filter:blur(0);
+  }
+
+  /* ---------- typography ---------- */
+  h1{
+    font-size:clamp(40px,6vw,76px);
+    line-height:1.04;
+    font-weight:600;
+    letter-spacing:-.035em;
+    margin:0 0 26px;
+  }
+  h2{
+    font-size:clamp(28px,4vw,52px);
+    line-height:1.1;
+    font-weight:600;
+    letter-spacing:-.03em;
+    margin:0 auto 14px;
+    max-width:15em;
+  }
+  .lead{
+    font-size:clamp(17px,1.7vw,21px);
+    line-height:1.5;
+    color:var(--muted);
+    max-width:660px;
+    margin:0 auto 52px;
+  }
+  .slide--dark .lead{color:rgba(245,245,247,.6)}
+
+  .hero h1{
+    background:linear-gradient(180deg,#1d1d1f 0%,#6e6e73 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+  }
+
+  .eyebrow{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:20px;
+  }
+
+  /* ---------- cards ---------- */
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+    text-align:left;
+  }
+  .card{
+    position:relative;
+    background:#fff;
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    padding:30px 28px 32px;
+    box-shadow:0 1px 2px rgba(0,0,0,.03);
+    transition:transform .5s var(--spring),box-shadow .45s var(--ease),border-color .45s var(--ease);
+  }
+  .card:hover{
+    transform:translateY(-4px);
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.22);
+  }
+  .card-index{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.16em;
+    color:var(--accent);
+    font-variant-numeric:tabular-nums;
+    margin-bottom:16px;
+  }
+  .card h3{
+    font-size:20px;
+    line-height:1.25;
+    font-weight:600;
+    letter-spacing:-.02em;
+    margin:0 0 10px;
+  }
+  .card p{
+    margin:0;
+    font-size:16px;
+    line-height:1.55;
+    color:var(--muted);
+  }
+
+  .icon-wrap{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:52px;
+    height:52px;
+    margin-bottom:20px;
+    border-radius:14px;
+    background:rgba(0,113,227,.08);
+    color:var(--accent);
+    transition:transform .5s var(--spring),background .4s var(--ease);
+  }
+  .shield-card:hover .icon-wrap{transform:rotate(-6deg)}
+  .icon-wrap svg{width:26px;height:26px;display:block}
+
+  .slide--dark .card{
+    background:rgba(255,255,255,.02);
+    border-color:rgba(255,255,255,.16);
+    box-shadow:none;
+  }
+  .slide--dark .card:hover{
+    border-color:rgba(255,255,255,.4);
+    background:rgba(255,255,255,.04);
+    box-shadow:none;
+  }
+  .slide--dark .card p{color:rgba(245,245,247,.6)}
+  .slide--dark .icon-wrap{background:rgba(0,113,227,.16)}
+
+  .verdict{
+    margin-top:26px;
+    padding:22px 28px;
+    border-radius:var(--radius);
+    background:rgba(255,59,48,.15);
+    color:#ff8a80;
+    font-size:18px;
+    line-height:1.45;
+    font-weight:500;
+    text-align:left;
+    border:1px solid rgba(255,59,48,.22);
+  }
+  .verdict strong{color:#ff6b61;font-weight:600}
+
+  /* ---------- quiz slides ---------- */
+  .timer{
+    display:inline-flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:34px;
+    transition:opacity .5s var(--ease);
+  }
+  .timer-bar{
+    position:relative;
+    width:190px;
+    height:4px;
+    border-radius:980px;
+    background:rgba(0,0,0,.1);
+    overflow:hidden;
+  }
+  .timer-fill{
+    position:absolute;
+    top:0;bottom:0;left:0;
+    width:100%;
+    border-radius:980px;
+    background:var(--accent);
+    transition:width 1s linear,background .3s var(--ease);
+  }
+  .timer-num{
+    font-size:15px;
+    font-weight:600;
+    letter-spacing:.06em;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+    min-width:74px;
+    text-align:left;
+  }
+  .timer.is-danger .timer-num{color:var(--danger);animation:pulseNum 1s ease-in-out infinite}
+  .timer.is-danger .timer-fill{background:var(--danger)}
+  .timer.is-done{opacity:.35}
+  @keyframes pulseNum{
+    0%,100%{opacity:1;transform:scale(1)}
+    50%{opacity:.55;transform:scale(1.14)}
+  }
+
+  .statement{
+    max-width:840px;
+    margin:0 auto 30px;
+    padding:44px 46px;
+    background:#fff;
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(0,0,0,.03);
+    font-size:clamp(22px,2.9vw,36px);
+    line-height:1.3;
+    font-weight:600;
+    letter-spacing:-.028em;
+  }
+
+  /* ---------- answer block ---------- */
+  .answer-block{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    margin:0 auto 24px;
+    min-height:56px;
+    opacity:0;
+    transform:translateY(14px) scale(.95);
+    filter:blur(3px);
+    transition:
+      opacity .6s var(--ease),
+      transform .7s var(--spring),
+      filter .6s var(--ease);
+  }
+  .answer-block.is-visible{
+    opacity:1;
+    transform:translateY(0) scale(1);
+    filter:blur(0);
+  }
+  .answer-block-label{
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .answer-block-value{
+    display:inline-flex;
+    align-items:center;
+    padding:12px 32px;
+    border-radius:var(--pill);
+    font-size:clamp(20px,2.2vw,26px);
+    font-weight:600;
+    letter-spacing:-.02em;
+    color:#fff;
+  }
+  .answer-block-value.is-myth{
+    background:var(--danger);
+    box-shadow:0 8px 24px rgba(255,59,48,.28);
+  }
+  .answer-block-value.is-real{
+    background:var(--success);
+    box-shadow:0 8px 24px rgba(52,199,89,.28);
+  }
+  .answer-block.is-visible .answer-block-value{
+    animation:pop .55s var(--spring);
+  }
+  @keyframes pop{
+    0%{transform:scale(.85)}
+    45%{transform:scale(1.06)}
+    100%{transform:scale(1)}
+  }
+
+  .hint{
+    max-width:640px;
+    margin:0 auto;
+    min-height:52px;
+    font-size:17px;
+    line-height:1.5;
+    color:var(--muted);
+    opacity:0;
+    transition:opacity .5s var(--ease);
+  }
+  .hint.is-visible{opacity:1}
+  .hint.is-myth{color:var(--danger)}
+  .hint.is-real{color:#1f9d43}
+  .hint.flash{animation:hintIn .55s var(--ease)}
+  @keyframes hintIn{
+    from{opacity:0;transform:translateY(10px);filter:blur(3px)}
+    to{opacity:1;transform:none;filter:blur(0)}
+  }
+
+  /* ---------- navigation ---------- */
+  .nav{
+    position:fixed;
+    left:50%;
+    bottom:26px;
+    transform:translateX(-50%);
+    z-index:70;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:10px 12px 12px;
+    border-radius:var(--pill);
+    border:1px solid rgba(0,0,0,.07);
+    background:rgba(255,255,255,.72);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    backdrop-filter:saturate(180%) blur(20px);
+    box-shadow:0 10px 30px -12px rgba(0,0,0,.25);
+  }
+  .nav-arrow{
+    appearance:none;
+    width:40px;
+    height:40px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:none;
+    border-radius:50%;
+    background:transparent;
+    color:var(--text);
+    cursor:pointer;
+    transition:transform .3s var(--ease),background .3s var(--ease),opacity .3s var(--ease);
+  }
+  .nav-arrow svg{width:18px;height:18px;display:block}
+  .nav-arrow:hover:not(:disabled){background:rgba(0,0,0,.06)}
+  .nav-arrow.prev:hover:not(:disabled){transform:translateX(-3px)}
+  .nav-arrow.next:hover:not(:disabled){transform:translateX(3px)}
+  .nav-arrow:disabled{opacity:.25;cursor:default}
+
+  .nav-middle{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    padding:0 8px;
+  }
+  .counter{
+    display:flex;
+    align-items:baseline;
+    gap:5px;
+    font-size:14px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+  }
+  .counter-current{
+    position:relative;
+    display:inline-block;
+    height:18px;
+    min-width:20px;
+    overflow:hidden;
+  }
+  .counter-current .num{
+    position:absolute;
+    right:0;
+    top:0;
+    line-height:18px;
+    transition:transform .42s var(--ease),opacity .42s var(--ease);
+  }
+  .counter-current .num.enter{transform:translateY(100%);opacity:0}
+  .counter-current .num.leave{transform:translateY(-100%);opacity:0}
+  .counter-total{color:var(--muted)}
+
+  .dots{display:flex;gap:6px;align-items:center}
+  .dot{
+    appearance:none;
+    border:none;
+    padding:0;
+    width:6px;
+    height:6px;
+    border-radius:980px;
+    background:rgba(0,0,0,.13);
+    cursor:pointer;
+    transition:width .45s var(--spring),background .35s var(--ease),opacity .35s var(--ease);
+  }
+  .dot:hover{background:rgba(0,0,0,.32)}
+  .dot.done{background:rgba(0,0,0,.28)}
+  .dot.todo{opacity:.5}
+  .dot.current{width:22px;background:var(--accent)}
+
+  /* ---------- compact layout ---------- */
+  @media (max-height:880px){
+    .slide{padding:62px 48px 124px}
+    .slide-num{top:-40px}
+    h2{font-size:clamp(26px,3.4vw,44px);margin-bottom:12px}
+    .lead{font-size:clamp(16px,1.5vw,19px);margin-bottom:34px}
+    .eyebrow{margin-bottom:14px}
+    .cards{gap:16px}
+    .card{padding:24px 22px 26px}
+    .card-index{margin-bottom:12px}
+    .card h3{font-size:18px;margin-bottom:8px}
+    .card p{font-size:15px;line-height:1.5}
+    .verdict{margin-top:20px;padding:16px 20px;font-size:16px}
+    .timer{margin-bottom:24px}
+    .statement{padding:32px 34px;margin-bottom:22px;font-size:clamp(21px,2.5vw,31px)}
+    .answer-block{margin-bottom:18px;min-height:48px}
+    .answer-block-value{padding:10px 24px}
+    .hint{font-size:15px;min-height:44px}
+  }
+  @media (max-height:760px){
+    .slide{padding:46px 36px 108px}
+    .slide-num{top:-32px;font-size:11px}
+    h1{font-size:clamp(34px,5vw,56px);margin-bottom:18px}
+    h2{font-size:clamp(23px,2.8vw,34px);margin-bottom:10px}
+    .lead{font-size:16px;margin-bottom:24px}
+    .eyebrow{font-size:11px;margin-bottom:10px}
+    .cards{gap:12px}
+    .card{padding:18px 18px 20px;border-radius:18px}
+    .card-index{font-size:11px;margin-bottom:8px}
+    .card h3{font-size:16px;margin-bottom:6px}
+    .card p{font-size:13.5px;line-height:1.45}
+    .verdict{margin-top:14px;padding:12px 16px;font-size:14px}
+    .timer{margin-bottom:16px;gap:10px}
+    .timer-bar{width:150px}
+    .statement{padding:24px 26px;margin-bottom:16px;font-size:clamp(19px,2.2vw,26px)}
+    .answer-block{margin-bottom:14px;min-height:42px}
+    .answer-block-value{padding:8px 20px;font-size:18px}
+    .hint{font-size:13.5px;min-height:38px}
+    .nav{bottom:14px;padding:8px 10px 10px}
+    .nav-arrow{width:34px;height:34px}
+  }
+
+  @media (max-width:900px){
+    .slide{padding:96px 24px 150px;align-items:flex-start;overflow-y:auto;overscroll-behavior:contain}
+    .cards{grid-template-columns:1fr;gap:14px}
+    .statement{padding:30px 24px;margin-bottom:22px}
+    .slide-num{position:static;display:block;margin-bottom:18px;top:auto}
+    .card{padding:24px 22px 26px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+      animation-duration:.001ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;
+      transition-delay:0s !important;
+    }
+    .anim-up,.anim-title,.anim-hero,.anim-num,.anim-pop{opacity:1;transform:none;filter:none}
+    .slide--dark::before{animation:none}
+  }
+
+  @media print{
+    @page{size:297mm 210mm;margin:0}
+    html,body{height:auto;overflow:visible}
+    .nav,.progress{display:none !important}
+    .slide{
+      position:relative;
+      inset:auto;
+      width:297mm;
+      height:209mm;
+      padding:22mm 20mm;
+      opacity:1 !important;
+      visibility:visible !important;
+      pointer-events:auto !important;
+      transform:none !important;
+      filter:none !important;
+      page-break-after:always;
+      break-after:page;
+      overflow:hidden;
+    }
+    .slide:last-child{page-break-after:auto;break-after:auto}
+    .slide--dark::before{animation:none}
+    .slide [class*="anim-"]{
+      opacity:1 !important;
+      transform:none !important;
+      filter:none !important;
+      transition:none !important;
+    }
+    .cards{gap:10mm}
+    .timer{opacity:1 !important}
+    .answer-block{opacity:1 !important;transform:none !important;filter:none !important}
+    .hint{opacity:1 !important}
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" aria-hidden="true"><span class="progress-fill" id="progressFill"></span></div>
+
+<main id="deck">
+
+  <!-- 01 · title -->
+  <section class="slide active" data-slide="1">
+    <div class="slide-inner hero">
+      <div class="slide-num anim-num" style="--d:.05s">01 / 13</div>
+      <h1 class="anim-hero">Миф или&nbsp;реальность</h1>
+      <p class="lead anim-up" style="--d:.35s">Как обнаружить обман в&nbsp;сети. Интерактивная игра о&nbsp;цифровой бдительности, фальшивых сайтах, паролях и&nbsp;2FA</p>
+    </div>
+  </section>
+
+  <!-- 02 · why it matters -->
+  <section class="slide slide--alt" data-slide="2">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">02 / 13</div>
+      <h2 class="anim-title">Почему эта тема касается всех</h2>
+      <p class="lead anim-up" style="--d:.2s">Обман в&nbsp;сети построен не&nbsp;на&nbsp;сложных взломах, а&nbsp;на&nbsp;доверии и&nbsp;спешке</p>
+      <div class="cards">
+        <article class="card anim-up" style="--d:.2s">
+          <span class="card-index">01</span>
+          <h3>Маскировка под&nbsp;друзей</h3>
+          <p>Мошенники пишут от&nbsp;имени знакомых: в&nbsp;переписке доверие появляется раньше, чем проверка.</p>
+        </article>
+        <article class="card anim-up" style="--d:.35s">
+          <span class="card-index">02</span>
+          <h3>Сайты с&nbsp;замком</h3>
+          <p>HTTPS есть и&nbsp;у&nbsp;мошенников. Замок в&nbsp;адресной строке ничего не&nbsp;говорит о&nbsp;владельце сайта.</p>
+        </article>
+        <article class="card anim-up" style="--d:.5s">
+          <span class="card-index">03</span>
+          <h3>Срочность и&nbsp;подарки</h3>
+          <p>«Срочно», «аккаунт заблокирован», «вы выиграли» — на&nbsp;эмоциях кликают чаще всего.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · rules -->
+  <section class="slide" data-slide="3">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">03 / 13</div>
+      <h2 class="anim-title">Правила игры</h2>
+      <p class="lead anim-up" style="--d:.2s">Три действия на&nbsp;каждом раунде. Отвечаем вместе, разбираем вместе</p>
+      <div class="cards">
+        <article class="card anim-up" style="--d:.2s">
+          <span class="card-index">01</span>
+          <h3>Смотрим утверждение</h3>
+          <p>На&nbsp;экране появляется распространённое убеждение об&nbsp;интернете. Читаем вслух.</p>
+        </article>
+        <article class="card anim-up" style="--d:.35s">
+          <span class="card-index">02</span>
+          <h3>Голосуем коллективно</h3>
+          <p>15 секунд на&nbsp;обсуждение, затем класс выбирает: миф это или&nbsp;реальность.</p>
+        </article>
+        <article class="card anim-up" style="--d:.5s">
+          <span class="card-index">03</span>
+          <h3>Разбираем ответ</h3>
+          <p>Показываем правильный ответ и&nbsp;объясняем, как всё устроено на&nbsp;самом деле.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · statement 1 -->
+  <section class="slide slide--alt quiz-slide" data-slide="4" data-answer="myth" data-timer="15">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">04 / 13</div>
+      <div class="timer anim-up" style="--d:.1s" data-timer-box>
+        <div class="timer-bar"><span class="timer-fill" data-timer-fill></span></div>
+        <div class="timer-num"><span data-timer-num>15</span> сек</div>
+      </div>
+      <span class="eyebrow anim-up" style="--d:.15s">Утверждение 1 · 03</span>
+      <div class="statement anim-title" style="--d:.2s">«Если на&nbsp;сайте есть замок и&nbsp;HTTPS — ему можно доверять свои данные»</div>
+      <div class="answer-block" data-answer-block>
+        <span class="answer-block-label">Правильный ответ</span>
+        <span class="answer-block-value" data-answer-value></span>
+      </div>
+      <p class="hint" data-hint
+         data-idle="Голосуем классом — через 15 секунд покажем ответ"
+         data-correct="Замок означает только шифрование канала. Сертификат бесплатно получает любой сайт — включая фишинговый."
+         data-timeout="Замок означает только шифрование канала. Сертификат бесплатно получает любой сайт — включая фишинговый.">Голосуем классом — через 15 секунд покажем ответ</p>
+    </div>
+  </section>
+
+  <!-- 05 · reveal 1 -->
+  <section class="slide slide--dark" data-slide="5">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">05 / 13</div>
+      <h2 class="anim-title">HTTPS не&nbsp;гарантирует безопасность</h2>
+      <p class="lead anim-up" style="--d:.2s">Замок отвечает за&nbsp;канал, а&nbsp;не&nbsp;за&nbsp;честность того, кто по&nbsp;другую сторону</p>
+      <div class="cards">
+        <article class="card anim-up" style="--d:.2s">
+          <span class="card-index">01</span>
+          <h3>Что значит замок</h3>
+          <p>Данные между вами и&nbsp;сайтом зашифрованы: их&nbsp;не&nbsp;прочитают в&nbsp;публичной сети. Только и&nbsp;всего.</p>
+        </article>
+        <article class="card anim-up" style="--d:.35s">
+          <span class="card-index">02</span>
+          <h3>HTTPS не&nbsp;равно честность</h3>
+          <p>Сертификат выдают бесплатно и&nbsp;автоматически — мошенник получает его за&nbsp;пять минут.</p>
+        </article>
+        <article class="card anim-up" style="--d:.5s">
+          <span class="card-index">03</span>
+          <h3>Сравниваем адрес точно</h3>
+          <p>paypaI.com вместо paypal.com, оплата-bank.ru вместо официального домена. Одна буква меняет всё.</p>
+        </article>
+      </div>
+      <p class="verdict anim-up" style="--d:.62s"><strong>Правило:</strong> доверяйте не&nbsp;замку, а&nbsp;точному адресу в&nbsp;строке браузера</p>
+    </div>
+  </section>
+
+  <!-- 06 · statement 2 -->
+  <section class="slide slide--alt quiz-slide" data-slide="6" data-answer="myth" data-timer="15">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">06 / 13</div>
+      <div class="timer anim-up" style="--d:.1s" data-timer-box>
+        <div class="timer-bar"><span class="timer-fill" data-timer-fill></span></div>
+        <div class="timer-num"><span data-timer-num>15</span> сек</div>
+      </div>
+      <span class="eyebrow anim-up" style="--d:.15s">Утверждение 2 · 03</span>
+      <div class="statement anim-title" style="--d:.2s">«Если ссылку прислал друг — это безопасно»</div>
+      <div class="answer-block" data-answer-block>
+        <span class="answer-block-label">Правильный ответ</span>
+        <span class="answer-block-value" data-answer-value></span>
+      </div>
+      <p class="hint" data-hint
+         data-idle="Голосуем классом — через 15 секунд покажем ответ"
+         data-correct="Аккаунт друга взламывают — и сообщение приходит из вашего списка контактов. Проверяйте другим каналом связи."
+         data-timeout="Аккаунт друга взламывают — и сообщение приходит из вашего списка контактов. Проверяйте другим каналом связи.">Голосуем классом — через 15 секунд покажем ответ</p>
+    </div>
+  </section>
+
+  <!-- 07 · reveal 2 -->
+  <section class="slide slide--dark" data-slide="7">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">07 / 13</div>
+      <h2 class="anim-title">Взломанный аккаунт друга</h2>
+      <p class="lead anim-up" style="--d:.2s">Доверие к&nbsp;человеку мошенники используют как готовый пропуск</p>
+      <div class="cards">
+        <article class="card anim-up" style="--d:.2s">
+          <span class="card-index">01</span>
+          <h3>Друг не&nbsp;всегда это друг</h3>
+          <p>Аккаунт перехватывают и&nbsp;пишут от&nbsp;его имени: знакомое имя, обычный тон, чужая цель.</p>
+        </article>
+        <article class="card anim-up" style="--d:.35s">
+          <span class="card-index">02</span>
+          <h3>Проверяем другим каналом</h3>
+          <p>Позвоните или спросите то, что знаете только вы&nbsp;вдвоём. Один вопрос снимает все сомнения.</p>
+        </article>
+        <article class="card anim-up" style="--d:.5s">
+          <span class="card-index">03</span>
+          <h3>Ссылку открываем сами</h3>
+          <p>Не&nbsp;переходите по&nbsp;присланной ссылке — зайдите на&nbsp;сайт вручную или через свою закладку.</p>
+        </article>
+      </div>
+      <p class="verdict anim-up" style="--d:.62s"><strong>Правило:</strong> любое сообщение со&nbsp;ссылкой подтверждайте другим способом связи</p>
+    </div>
+  </section>
+
+  <!-- 08 · statement 3 -->
+  <section class="slide slide--alt quiz-slide" data-slide="8" data-answer="myth" data-timer="15">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">08 / 13</div>
+      <div class="timer anim-up" style="--d:.1s" data-timer-box>
+        <div class="timer-bar"><span class="timer-fill" data-timer-fill></span></div>
+        <div class="timer-num"><span data-timer-num>15</span> сек</div>
+      </div>
+      <span class="eyebrow anim-up" style="--d:.15s">Утверждение 3 · 03</span>
+      <div class="statement anim-title" style="--d:.2s">«Пароль qwerty12345 длинный — значит, надёжный»</div>
+      <div class="answer-block" data-answer-block>
+        <span class="answer-block-label">Правильный ответ</span>
+        <span class="answer-block-value" data-answer-value></span>
+      </div>
+      <p class="hint" data-hint
+         data-idle="Голосуем классом — через 15 секунд покажем ответ"
+         data-correct="qwerty12345 — словарная база плюс цифры, она перебирается за секунды. Надёжность дают длина, сложность и уникальность."
+         data-timeout="qwerty12345 — словарная база плюс цифры, она перебирается за секунды. Надёжность дают длина, сложность и уникальность.">Голосуем классом — через 15 секунд покажем ответ</p>
+    </div>
+  </section>
+
+  <!-- 09 · reveal 3 -->
+  <section class="slide slide--dark" data-slide="9">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">09 / 13</div>
+      <h2 class="anim-title">Слабые пароли взламываются быстро</h2>
+      <p class="lead anim-up" style="--d:.2s">Автоматический перебор не&nbsp;устаёт и&nbsp;не&nbsp;фантазирует — он&nbsp;идёт по&nbsp;списку</p>
+      <div class="cards">
+        <article class="card anim-up" style="--d:.2s">
+          <span class="card-index">01</span>
+          <h3>Длина не&nbsp;равно надёжность</h3>
+          <p>Слово из&nbsp;клавиатурного ряда и&nbsp;цифры — первые строки любого словаря атак.</p>
+        </article>
+        <article class="card anim-up" style="--d:.35s">
+          <span class="card-index">02</span>
+          <h3>Что реально сложно</h3>
+          <p>12 и&nbsp;более символов, разный регистр, цифры и&nbsp;знаки — и&nbsp;никаких имён, дат и&nbsp;городов.</p>
+        </article>
+        <article class="card anim-up" style="--d:.5s">
+          <span class="card-index">03</span>
+          <h3>Уникальность важнее</h3>
+          <p>Один пароль на&nbsp;все сервисы — одна утечка открывает почту, банк и&nbsp;соцсети сразу.</p>
+        </article>
+      </div>
+      <p class="verdict anim-up" style="--d:.62s"><strong>Правило:</strong> уникальная длинная случайная фраза надёжнее короткого слова с&nbsp;цифрами</p>
+    </div>
+  </section>
+
+  <!-- 10 · your shield -->
+  <section class="slide slide--alt" data-slide="10">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">10 / 13</div>
+      <h2 class="anim-title">Ваш щит в&nbsp;интернете</h2>
+      <p class="lead anim-up" style="--d:.2s">Три инструмента, которые закрывают большинство типовых атак</p>
+      <div class="cards">
+        <article class="card shield-card anim-up" style="--d:.2s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/>
+              <path d="M8 10.5v-3a4 4 0 0 1 8 0v3"/>
+              <path d="M12 14.4v2.2"/>
+            </svg>
+          </div>
+          <h3>2FA — второй замок</h3>
+          <p>Подтверждение входа кодом из&nbsp;приложения. Даже украденный пароль не&nbsp;даст доступ к&nbsp;аккаунту.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.35s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8" cy="8" r="4.2"/>
+              <path d="M11 11l8.5 8.5"/>
+              <path d="M16.4 16.4l1.9-1.9"/>
+              <path d="M13.6 13.6l1.7-1.7"/>
+            </svg>
+          </div>
+          <h3>Менеджер паролей</h3>
+          <p>Один мастер-пароль, сотни уникальных. Не&nbsp;нужно придумывать, записывать и&nbsp;запоминать.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.5s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5"/>
+              <path d="M15.8 15.8L20 20"/>
+            </svg>
+          </div>
+          <h3>Проверка ссылок</h3>
+          <p>Наведите курсор — адрес виден заранее. Проверяем до&nbsp;клика, а&nbsp;не&nbsp;после того, как всё открылось.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · three steps -->
+  <section class="slide" data-slide="11">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">11 / 13</div>
+      <h2 class="anim-title">Три шага перед кликом</h2>
+      <p class="lead anim-up" style="--d:.2s">Порядок действий, который занимает меньше минуты</p>
+      <div class="cards">
+        <article class="card shield-card anim-up" style="--d:.2s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/>
+              <path d="M3.5 12h17"/>
+              <path d="M12 3.5c2.4 2.4 2.4 14.6 0 17M12 3.5c-2.4 2.4-2.4 14.6 0 17"/>
+            </svg>
+          </div>
+          <h3>1. Смотрим адрес</h3>
+          <p>Зажмите ссылку или наведите курсор: настоящий адрес покажется заранее. Сверяем домен символ в&nbsp;символ.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.35s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.5l7 2.4V12c0 4.2-2.9 7-7 8.5C7.9 19 5 16.2 5 12V5.9z"/>
+              <path d="M9 12l2.2 2.2 4.3-4.6"/>
+            </svg>
+          </div>
+          <h3>2. Проверяем в&nbsp;VirusTotal</h3>
+          <p>Вставьте ссылку на&nbsp;virustotal.com — десятки антивирусов проверят её за&nbsp;несколько секунд.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.5s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/>
+              <path d="M8.2 12.2l2.6 2.6 5-5.4"/>
+            </svg>
+          </div>
+          <h3>3. Решаем</h3>
+          <p>Есть сомнение — нет клика. Минута паузы и&nbsp;один звонок автору дешевле испорченного аккаунта.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · three rules -->
+  <section class="slide slide--alt" data-slide="12">
+    <div class="slide-inner">
+      <div class="slide-num anim-num" style="--d:.05s">12 / 13</div>
+      <h2 class="anim-title">Три правила, которые работают всегда</h2>
+      <p class="lead anim-up" style="--d:.2s">Их&nbsp;достаточно, чтобы пережить большинство рассылок мошенников</p>
+      <div class="cards">
+        <article class="card shield-card anim-up" style="--d:.2s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.6 12S6.1 6.6 12 6.6 21.4 12 21.4 12 17.9 17.4 12 17.4 2.6 12 2.6 12Z"/>
+              <circle cx="12" cy="12" r="2.7"/>
+            </svg>
+          </div>
+          <h3>Проверяй детали</h3>
+          <p>Опечатка в&nbsp;домене, чужой язык, непривычный тон, лишнее вложение — подделку выдают мелочи.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.35s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/>
+              <path d="M12 7.4V12l3.1 2"/>
+            </svg>
+          </div>
+          <h3>Не&nbsp;доверяй нажиму</h3>
+          <p>«Срочно», «осталась минута», «иначе заблокируем» — давление и&nbsp;есть главный инструмент атаки.</p>
+        </article>
+        <article class="card shield-card anim-up" style="--d:.5s">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8.2" r="3.4"/>
+              <path d="M5.6 20c1-3.4 3.3-5 6.4-5s5.4 1.6 6.4 5"/>
+            </svg>
+          </div>
+          <h3>Защищай аккаунты</h3>
+          <p>Уникальные пароли, второй фактор, выход из&nbsp;лишних сессий. Меньше дверей — меньше шансов.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · final -->
+  <section class="slide" data-slide="13">
+    <div class="slide-inner hero">
+      <div class="slide-num anim-num" style="--d:.05s">13 / 13</div>
+      <h1 class="anim-hero">Спасибо за&nbsp;внимание</h1>
+      <p class="lead anim-up" style="--d:.35s">Безопасность в&nbsp;сети — это не&nbsp;удача и&nbsp;не&nbsp;сложные технологии. Это несколько простых привычек: смотреть на&nbsp;адрес, не&nbsp;спешить и&nbsp;включать второй фактор. Они работают каждый день</p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="nav" aria-label="Навигация по презентации">
+  <button class="nav-arrow prev" type="button" id="prevBtn" aria-label="Предыдущий слайд">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
+  </button>
+  <div class="nav-middle">
+    <div class="counter"><span class="counter-current" id="counterCurrent"></span><span class="counter-total" id="counterTotal">/ 13</span></div>
+    <div class="dots" id="dots"></div>
+  </div>
+  <button class="nav-arrow next" type="button" id="nextBtn" aria-label="Следующий слайд">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg>
+  </button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var current = 0;
+
+  var fill = document.getElementById('progressFill');
+  var dotsBox = document.getElementById('dots');
+  var counterCurrent = document.getElementById('counterCurrent');
+  var counterTotal = document.getElementById('counterTotal');
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+
+  // answered[index] = true | false
+  var answered = {};
+  var timer = null;
+  var pendingTimers = [];
+
+  counterTotal.textContent = '/ ' + total;
+
+  /* ---------- dots ---------- */
+  slides.forEach(function (slide, i) {
+    var dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'dot';
+    dot.setAttribute('aria-label', 'Слайд ' + (i + 1));
+    dot.title = 'Слайд ' + (i + 1);
+    dot.addEventListener('click', function () { goTo(i); });
+    dotsBox.appendChild(dot);
+  });
+  var dots = Array.prototype.slice.call(dotsBox.children);
+
+  /* ---------- counter ---------- */
+  function setCounter(n) {
+    var old = counterCurrent.querySelector('.num:not(.leave)');
+    if (old && old.textContent === String(n)) return;
+    var fresh = document.createElement('span');
+    fresh.className = 'num enter';
+    fresh.textContent = n;
+    counterCurrent.appendChild(fresh);
+    void fresh.offsetWidth;
+    fresh.classList.remove('enter');
+    if (old) {
+      old.classList.add('leave');
+      var stale = old;
+      setTimeout(function () { if (stale.parentNode) stale.parentNode.removeChild(stale); }, 500);
+    }
+  }
+
+  /* ---------- chrome ---------- */
+  function updateChrome() {
+    fill.style.width = ((current + 1) / total * 100) + '%';
+    fill.classList.remove('pulse');
+    void fill.offsetWidth;
+    fill.classList.add('pulse');
+
+    dots.forEach(function (dot, i) {
+      dot.classList.toggle('current', i === current);
+      dot.classList.toggle('done', i < current);
+      dot.classList.toggle('todo', i > current);
+    });
+
+    setCounter(current + 1);
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === total - 1;
+  }
+
+  /* ---------- navigation ---------- */
+  function goTo(index, direction) {
+    index = Math.max(0, Math.min(total - 1, index));
+    if (index === current) return;
+    var dir = direction || (index > current ? 1 : -1);
+    var from = slides[current];
+    var to = slides[index];
+
+    stopTimer();
+    clearPending();
+
+    to.classList.add('no-anim');
+    to.style.transform = 'translate3d(' + (dir > 0 ? 60 : -60) + 'px,0,0) scale(.98)';
+    void to.offsetWidth;
+    to.classList.remove('no-anim');
+    to.style.transform = '';
+
+    from.classList.remove('active');
+    from.classList.add('leaving');
+    from.style.transform = 'translate3d(' + (dir > 0 ? -60 : 60) + 'px,0,0) scale(.98)';
+    to.classList.add('active');
+
+    pendingTimers.push(setTimeout(function () {
+      from.classList.remove('leaving');
+      from.style.transform = '';
+    }, 800));
+
+    current = index;
+    updateChrome();
+    enterSlide(to);
+  }
+
+  function next() { goTo(current + 1, 1); }
+  function prev() { goTo(current - 1, -1); }
+
+  prevBtn.addEventListener('click', prev);
+  nextBtn.addEventListener('click', next);
+
+  /* ---------- timer ---------- */
+  function timerParts(slide) {
+    return {
+      box: slide.querySelector('[data-timer-box]'),
+      num: slide.querySelector('[data-timer-num]'),
+      bar: slide.querySelector('[data-timer-fill]')
+    };
+  }
+
+  function paintTimer(slide, left, limit) {
+    var p = timerParts(slide);
+    if (!p.box) return;
+    p.num.textContent = Math.max(0, left);
+    p.bar.style.width = (Math.max(0, left) / limit * 100) + '%';
+    p.box.classList.toggle('is-danger', left <= 5 && left > 0);
+    p.box.classList.toggle('is-done', left <= 0);
+  }
+
+  function startTimer(slide) {
+    stopTimer();
+    var p = timerParts(slide);
+    if (!p.box) return;
+    var limit = parseInt(slide.getAttribute('data-timer') || '15', 10);
+    var left = limit;
+    p.box.classList.remove('is-done', 'is-danger');
+    paintTimer(slide, left, limit);
+    timer = setInterval(function () {
+      left -= 1;
+      paintTimer(slide, left, limit);
+      if (left <= 0) {
+        stopTimer();
+        reveal(slide);
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  function clearPending() {
+    pendingTimers.forEach(function (id) { clearTimeout(id); });
+    pendingTimers = [];
+  }
+
+  /* ---------- quiz reveal ---------- */
+  function setHint(hint, text, tone) {
+    hint.classList.remove('flash', 'is-myth', 'is-real', 'is-visible');
+    hint.innerHTML = text;
+    if (tone) hint.classList.add(tone);
+    void hint.offsetWidth;
+    hint.classList.add('flash', 'is-visible');
+  }
+
+  function enterSlide(slide) {
+    if (!slide.classList.contains('quiz-slide')) return;
+    var index = slides.indexOf(slide);
+    if (answered[index]) {
+      applyResult(slide, true);
+    } else {
+      // показать idle-подсказку без вспышки
+      var hint = slide.querySelector('[data-hint]');
+      hint.innerHTML = hint.getAttribute('data-idle');
+      hint.classList.add('is-visible');
+      hint.classList.remove('flash', 'is-myth', 'is-real');
+      startTimer(slide);
+    }
+  }
+
+  function reveal(slide) {
+    var index = slides.indexOf(slide);
+    if (answered[index]) return;
+    answered[index] = true;
+    applyResult(slide, false);
+  }
+
+  function applyResult(slide, isReplay) {
+    var correct = slide.getAttribute('data-answer');
+    var hint = slide.querySelector('[data-hint]');
+    var answerBlock = slide.querySelector('[data-answer-block]');
+    var answerValue = slide.querySelector('[data-answer-value]');
+
+    var box = timerParts(slide).box;
+    if (box) { box.classList.remove('is-danger'); box.classList.add('is-done'); }
+
+    // показать блок правильного ответа
+    if (answerBlock && answerValue) {
+      answerValue.textContent = correct === 'myth' ? 'Миф' : 'Реальность';
+      answerValue.className = 'answer-block-value ' + (correct === 'myth' ? 'is-myth' : 'is-real');
+      answerBlock.classList.add('is-visible');
+    }
+
+    var tone = correct === 'myth' ? 'is-myth' : 'is-real';
+    var text = hint.getAttribute('data-correct') || hint.getAttribute('data-timeout') || '';
+
+    if (isReplay) {
+      hint.innerHTML = text;
+      hint.classList.add(tone, 'is-visible');
+      hint.classList.remove('flash');
+    } else {
+      setHint(hint, text, tone);
+    }
+  }
+
+  /* ---------- keyboard ---------- */
+  window.addEventListener('keydown', function (event) {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    var key = event.key;
+    var tag = ((event.target && event.target.tagName) || '').toLowerCase();
+
+    if (tag === 'button' && (key === ' ' || key === 'Enter')) return;
+
+    switch (key) {
+      case 'ArrowRight':
+      case 'PageDown':
+      case 'ArrowDown':
+      case ' ':
+        event.preventDefault(); next(); break;
+      case 'ArrowLeft':
+      case 'PageUp':
+      case 'ArrowUp':
+        event.preventDefault(); prev(); break;
+      case 'Home':
+        event.preventDefault(); goTo(0, -1); break;
+      case 'End':
+        event.preventDefault(); goTo(total - 1, 1); break;
+    }
+  });
+
+  /* ---------- swipe ---------- */
+  var startX = 0, startY = 0, tracking = false;
+  document.addEventListener('touchstart', function (event) {
+    var t = event.changedTouches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    tracking = true;
+  }, { passive: true });
+
+  document.addEventListener('touchend', function (event) {
+    if (!tracking) return;
+    tracking = false;
+    var t = event.changedTouches[0];
+    var dx = t.clientX - startX;
+    var dy = t.clientY - startY;
+    if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      if (dx < 0) { next(); } else { prev(); }
+    }
+  }, { passive: true });
+
+  /* ---------- init ---------- */
+  updateChrome();
+})();
+</script>
+</body>
+</html>
